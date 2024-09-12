@@ -1,0 +1,340 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>PacMan game created by Toscane Chevillon</title>
+    <style>
+        /* Style du jeu */
+        body {
+            background-color: #ffccf2; /* Rose clair */
+        }
+        #game {
+            display: grid;
+            grid-template-columns: repeat(10, 40px);
+            grid-template-rows: repeat(10, 40px);
+            gap: 2px;
+            margin: 0 auto;
+            margin-top: 50px;
+        }
+        .cell {
+            width: 40px;
+            height: 40px;
+            background-color: lightblue;
+            border: 1px solid #000;
+        }
+        .wall {
+            background-color: #000;
+        }
+        .exit {
+            background-color: green;
+        }
+        .pacman {
+            background-color: yellow;
+            border-radius: 50%;
+            position: relative;
+        }
+        .pacman::before {
+            content: '';
+            position: absolute;
+            top: 25%;
+            left: 50%;
+            width: 15px;
+            height: 15px;
+            background-color: white;
+            border-radius: 50%;
+            transform: translate(-50%);
+        }
+        .pacman::after {
+            content: '';
+            position: absolute;
+            top: 40%;
+            left: 50%;
+            width: 12px;
+            height: 6px;
+            background-color: black;
+            border-radius: 50%;
+            transform: translate(-50%);
+        }
+        .pellet {
+            background-color: white;
+            border-radius: 50%;
+        }
+        .ghost {
+            background-color: red;
+            border-radius: 50%;
+            position: relative;
+        }
+        .ghost::before {
+            content: '';
+            position: absolute;
+            top: 20%;
+            left: 25%;
+            width: 8px;
+            height: 8px;
+            background-color: white;
+            border-radius: 50%;
+        }
+        .ghost::after {
+            content: '';
+            position: absolute;
+            top: 20%;
+            left: 55%;
+            width: 8px;
+            height: 8px;
+            background-color: white;
+            border-radius: 50%;
+        }
+        #score {
+            text-align: center;
+            margin-top: 20px;
+            font-size: 24px;
+        }
+        #message {
+            text-align: center;
+            font-size: 24px;
+            color: red;
+        }
+        /* Feu d'artifice */
+        @keyframes fireworks {
+            0% { opacity: 1; transform: scale(1); }
+            100% { opacity: 0; transform: scale(5); }
+        }
+        .firework {
+            position: absolute;
+            width: 10px;
+            height: 10px;
+            background-color: red;
+            border-radius: 50%;
+            animation: fireworks 1s ease-out infinite;
+        }
+        #winMessage {
+            display: none;
+            text-align: center;
+            font-size: 32px;
+            color: green;
+            margin-top: 20px;
+        }
+        #replayButton {
+            display: none;
+            margin: 20px auto;
+            font-size: 20px;
+            padding: 10px 20px;
+            cursor: pointer;
+            background-color: #4CAF50;
+            color: white;
+            border: none;
+            border-radius: 5px;
+        }
+        #replayButton:hover {
+            background-color: #45a049;
+        }
+    </style>
+</head>
+<body>
+
+    <h1 style="text-align: center;">PacMan game created by Toscane Chevillon</h1>
+    <div id="game"></div>
+    <div id="score">Score: 0</div>
+    <div id="message"></div>
+    <div id="winMessage">Good Job!</div>
+    <button id="replayButton" onclick="restartGame()">Rejouer</button>
+
+    <script>
+        let gameGrid;
+        let pacmanPosition;
+        let ghosts;
+        let score = 0;
+        let gameOver = false;
+
+        const initialGameGrid = [
+            [1, 1, 1, 1, 1, 1, 1, 1, 1, 1],
+            [1, 0, 0, 0, 1, 0, 0, 0, 0, 1],
+            [1, 0, 1, 0, 1, 0, 1, 1, 0, 1],
+            [1, 0, 1, 0, 0, 0, 0, 1, 0, 1],
+            [1, 0, 1, 1, 1, 1, 0, 1, 0, 1],
+            [1, 0, 0, 0, 0, 0, 0, 1, 0, 1],
+            [1, 0, 1, 1, 0, 1, 0, 1, 0, 1],
+            [1, 0, 1, 0, 0, 1, 0, 1, 0, 1],
+            [1, 0, 0, 0, 0, 0, 0, 0, 2, 1], // '2' is the exit point
+            [1, 1, 1, 1, 1, 1, 1, 1, 1, 1],
+        ];
+
+        function initGame() {
+            gameGrid = JSON.parse(JSON.stringify(initialGameGrid)); // Deep copy
+            pacmanPosition = { x: 1, y: 1 };
+            ghosts = [{ x: 8, y: 1 }, { x: 8, y: 8 }];
+            score = 0;
+            gameOver = false;
+
+            document.getElementById('message').textContent = '';
+            document.getElementById('winMessage').style.display = 'none';
+            document.getElementById('replayButton').style.display = 'none';
+            updateScore();
+            createGameGrid();
+        }
+
+        function createGameGrid() {
+            const game = document.getElementById('game');
+            game.innerHTML = ''; // Reset the grid
+            gameGrid.forEach((row, rowIndex) => {
+                row.forEach((cell, cellIndex) => {
+                    const div = document.createElement('div');
+                    div.classList.add('cell');
+                    if (cell === 1) {
+                        div.classList.add('wall');
+                    } else if (cell === 0) {
+                        div.classList.add('pellet');
+                    } else if (cell === 2) {
+                        div.classList.add('exit');
+                    }
+                    if (rowIndex === pacmanPosition.y && cellIndex === pacmanPosition.x) {
+                        div.classList.add('pacman');
+                    }
+                    ghosts.forEach(ghost => {
+                        if (rowIndex === ghost.y && cellIndex === ghost.x) {
+                            div.classList.add('ghost');
+                        }
+                    });
+                    game.appendChild(div);
+                });
+            });
+        }
+
+        function updateScore() {
+            document.getElementById('score').textContent = `Score: ${score}`;
+        }
+
+        function checkCollision() {
+            for (let ghost of ghosts) {
+                if (pacmanPosition.x === ghost.x && pacmanPosition.y === ghost.y) {
+                    document.getElementById('message').textContent = 'Game Over!';
+                    gameOver = true;
+                    showReplayButton();
+                    return true;
+                }
+            }
+            return false;
+        }
+
+        function showReplayButton() {
+            document.getElementById('replayButton').style.display = 'block';
+        }
+
+        function showFireworks() {
+            const firework1 = document.createElement('div');
+            const firework2 = document.createElement('div');
+            const firework3 = document.createElement('div');
+
+            firework1.classList.add('firework');
+            firework2.classList.add('firework');
+            firework3.classList.add('firework');
+
+            firework1.style.top = '100px';
+            firework1.style.left = '50%';
+
+            firework2.style.top = '200px';
+            firework2.style.left = '40%';
+
+            firework3.style.top = '200px';
+            firework3.style.left = '60%';
+
+            document.body.appendChild(firework1);
+            document.body.appendChild(firework2);
+            document.body.appendChild(firework3);
+
+            setTimeout(() => {
+                firework1.remove();
+                firework2.remove();
+                firework3.remove();
+            }, 3000); // Feux d'artifice durent 3 secondes
+        }
+
+        function checkVictory() {
+            if (gameGrid[pacmanPosition.y][pacmanPosition.x] === 2) {
+                document.getElementById('winMessage').style.display = 'block';
+                showFireworks();
+                gameOver = true;
+                showReplayButton();
+            }
+        }
+
+        function movePacman(x, y) {
+            if (gameOver) return;
+
+            const newX = pacmanPosition.x + x;
+            const newY = pacmanPosition.y + y;
+            if (gameGrid[newY][newX] !== 1) {
+                pacmanPosition = { x: newX, y: newY };
+                if (gameGrid[newY][newX] === 0) {
+                    gameGrid[newY][newX] = 3; // Marque la pastille comme mangée
+                    score++;
+                    updateScore();
+                }
+                createGameGrid();
+                if (checkCollision()) {
+                    return;
+                }
+                checkVictory();
+            }
+        }
+
+        function moveGhosts() {
+            if (gameOver) return;
+
+            ghosts.forEach(ghost => {
+                let direction = Math.floor(Math.random() * 4); // Random direction: 0=up, 1=down, 2=left, 3=right
+                let newX = ghost.x;
+                let newY = ghost.y;
+                switch (direction) {
+                    case 0:
+                        newY -= 1;
+                        break;
+                    case 1:
+                        newY += 1;
+                        break;
+                    case 2:
+                        newX -= 1;
+                        break;
+                    case 3:
+                        newX += 1;
+                        break;
+                }
+                if (gameGrid[newY][newX] !== 1) {
+                    ghost.x = newX;
+                    ghost.y = newY;
+                }
+            });
+            createGameGrid();
+            checkCollision();
+        }
+
+        document.addEventListener('keydown', (event) => {
+            switch (event.key) {
+                case 'ArrowUp':
+                    movePacman(0, -1);
+                    break;
+                case 'ArrowDown':
+                    movePacman(0, 1);
+                    break;
+                case 'ArrowLeft':
+                    movePacman(-1, 0);
+                    break;
+                case 'ArrowRight':
+                    movePacman(1, 0);
+                    break;
+            }
+        });
+
+        function restartGame() {
+            initGame();
+        }
+
+        // Move the ghosts every 0.5 seconds (faster speed)
+        setInterval(moveGhosts, 500);
+
+        initGame();
+    </script>
+
+</body>
+</html>
